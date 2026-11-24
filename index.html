@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CareChart · Ruth Lee</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: clinical, calm, exact — a working hospital chart, not a poster.
+   IDEA: an Epic-style patient chart: banner, activity tabs, flowsheet grid, note editor.
+   PICTURE: the chart itself; the bedside panel reveals findings only when assessed.
+   COLOUR and TYPE: white ground, deep teal chrome, yellow allergy flag, coral for alerts; Source Sans 3.
+   LAYOUT: patient banner, tab row, progress rail at left, work area at right; stacks under 900px. */
+:root{color-scheme:light dark;
+--bg:light-dark(#ffffff,#121718);--panel:light-dark(#f6f8f8,#1a2122);--ink:light-dark(#1b2629,#e6eeee);--muted:light-dark(#566468,#9db0b2);
+--line:light-dark(#d8e0e1,#2c3739);--teal:light-dark(#0e5e6f,#5fb6c6);--chrome:#0e4f5d;--chromeink:#eef7f8;
+--flag:#ffd54a;--alert:light-dark(#b83a1b,#ff8a6b);--ok:light-dark(#1d7a46,#6fd39a);--warnbg:light-dark(#fff3ee,#3a2018);--okbg:light-dark(#eaf6ef,#163323);--field:light-dark(#ffffff,#0f1415)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 'Source Sans 3',system-ui,sans-serif;overflow-x:clip}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;min-height:44px;border-radius:8px;border:1px solid var(--line);background:var(--field);padding:8px 14px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+button.primary{background:var(--teal);color:light-dark(#fff,#0b1314);border-color:var(--teal);font-weight:600}
+button:disabled{opacity:.45;cursor:not-allowed}
+.top{background:var(--chrome);color:var(--chromeink);display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:10px max(3vw,14px)}
+.brand{font-weight:700;font-size:18px}.brand small{font-weight:400;opacity:.8;margin-left:8px}
+.top label{display:flex;gap:8px;align-items:center;font-size:15px}
+.top input{width:190px;min-height:40px;border-radius:6px;border:0;padding:6px 10px;color:#1b2629;background:#fff}
+.clock{font-weight:700;font-size:18px;background:rgba(255,255,255,.12);padding:6px 12px;border-radius:6px;white-space:nowrap}
+.top button{background:transparent;color:var(--chromeink);border-color:rgba(255,255,255,.4);min-height:40px}
+.banner{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;padding:12px max(3vw,14px);border-bottom:1px solid var(--line);background:var(--panel)}
+.banner h1{margin:0;font-size:26px;line-height:1.1}
+.banner span{font-size:15px;color:var(--muted);white-space:nowrap}.banner b{color:var(--ink)}
+.allergy{background:var(--flag);color:#3a2a00;font-weight:700;padding:3px 10px;border-radius:4px;white-space:nowrap}
+.tabs{display:flex;gap:4px;overflow-x:auto;padding:8px max(3vw,14px) 0;border-bottom:2px solid var(--teal)}
+.tabs button{border-radius:8px 8px 0 0;border-bottom:0;flex:none;font-weight:600}
+.tabs button[aria-selected=true]{background:var(--teal);color:light-dark(#fff,#0b1314);border-color:var(--teal)}
+.wrap{display:grid;grid-template-columns:260px minmax(0,1fr);gap:24px;padding:20px max(3vw,14px) 48px;max-width:1400px}
+@media(max-width:900px){.wrap{grid-template-columns:minmax(0,1fr)}}
+.rail h2,.work h2{font-size:20px;margin:0 0 10px}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.steps li{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:8px;background:var(--panel);font-size:15px}
+.steps i{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--muted);display:grid;place-items:center;font-style:normal;font-size:13px;font-weight:700}
+.steps li.done i{background:var(--ok);border-color:var(--ok);color:#fff}
+.steps li.done{color:var(--muted)}
+.note-sm{font-size:14px;color:var(--muted);margin-top:12px}
+.card{border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:16px;background:var(--bg)}
+.card h3{margin:0 0 8px;font-size:18px}
+.sbar dt{font-weight:700;color:var(--teal);margin-top:8px}.sbar dd{margin:2px 0 0}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--panel);font-weight:700}
+.scroll{overflow-x:auto}
+.actions{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.actions button{text-align:left}
+.actions button.seen{border-color:var(--teal);background:var(--panel)}
+.find{border-left:4px solid var(--teal);background:var(--panel);padding:10px 14px;margin:8px 0;border-radius:0 8px 8px 0}
+.find b{display:block;font-size:14px;color:var(--muted)}
+.fb{border-radius:8px;padding:10px 14px;margin:8px 0;font-size:15px}
+.fb.warn{background:var(--warnbg);color:var(--alert)}.fb.ok{background:var(--okbg);color:var(--ok)}
+.fs td input,.fs td select{width:100%;min-height:40px;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--field);font-size:16px}
+.fs td.bad input,.fs td.bad select{border-color:var(--alert);border-width:2px}
+.flag{display:block;font-size:13px;color:var(--alert);margin-top:4px}
+.flag.info{color:var(--muted)}
+.seg{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.seg button[aria-pressed=true]{background:var(--teal);color:light-dark(#fff,#0b1314);border-color:var(--teal)}
+.field{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;margin-bottom:10px;align-items:start}
+@media(max-width:600px){.field{grid-template-columns:minmax(0,1fr)}}
+.field label{font-weight:700;color:var(--teal);padding-top:8px}
+.field small{display:block;font-weight:400;color:var(--muted);font-size:13px}
+textarea{width:100%;min-height:76px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--field);font-size:16px;resize:vertical}
+.signed{border-left:4px solid var(--ok)}
+.signed pre{white-space:pre-wrap;font:inherit;margin:0}
+.sig{font-size:14px;color:var(--muted);margin-top:8px}
+.checks{list-style:none;padding:0;margin:8px 0;display:grid;gap:4px;font-size:15px}
+.checks li::before{content:"✓ ";color:var(--ok);font-weight:700}.checks li.w::before{content:"! ";color:var(--alert)}
+.checks li.w{color:var(--alert)}
+.model{background:var(--panel);border-radius:8px;padding:12px 14px;margin-top:10px}
+.model pre{white-space:pre-wrap;font:inherit;margin:0}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;place-items:center;padding:16px;z-index:10}
+.modal.open{display:grid}
+.modal .card{max-width:520px;width:100%}
+.modal label{display:flex;gap:10px;align-items:center;min-height:40px}
+.modal input[type=checkbox]{width:22px;height:22px}
+.sample{font-size:13px;color:var(--muted);padding:0 max(3vw,14px) 20px}
+[hidden]{display:none!important}
+.model td{background:var(--bg)}
+details.card summary{cursor:pointer;min-height:32px;font-size:17px}
+.dlist{margin:6px 0 0;padding-left:18px;display:grid;gap:6px;font-size:15px}
+.dlist b{color:var(--teal);margin-right:4px}
+.guide td:first-child{white-space:nowrap}
+@media(max-width:600px){table{font-size:14px}.stack tr:first-child{display:none}.stack tr{display:grid;padding-block:10px}.stack td{display:flow-root;border:0;padding:3px 0;padding-inline-start:8em}.stack td::before{content:attr(data-l);float:inline-start;width:7.5em;margin-inline-start:-8em;font-weight:700}.stack td:empty{display:none}}
+@media(prefers-reduced-motion:no-preference){.find,.fb{animation:in .25s ease-out}@keyframes in{from{opacity:0;transform:translateY(4px)}}}
+</style>
+</head>
+<body>
+<header class="top">
+<div class="brand">CareChart Academic<small>NURSE 154 Documentation Lab</small></div>
+<label>Student nurse <input id="student" placeholder="First and last name" autocomplete="name"></label>
+<div class="clock" id="clock">Time 0900</div>
+<button id="reset">Start over</button>
+</header>
+<section class="banner" aria-label="Patient banner">
+<h1>Lee, Ruth</h1>
+<span><b>70 y · F</b> · DOB 03/14/1956</span>
+<span>MRN <b>4410-2287</b></span>
+<span>Room <b>412</b></span>
+<span class="allergy">Allergy: Sulfa (rash)</span>
+<span>Full code</span>
+<span>Wt <b>68 kg</b></span>
+<span>Day 1 after <b>right total knee replacement</b></span>
+</section>
+<nav class="tabs" role="tablist" id="tabs"></nav>
+<div class="wrap">
+<aside class="rail">
+<h2>Your tasks</h2>
+<ol class="steps" id="steps"></ol>
+<p class="note-sm">Everything you chart must come from what you assessed or did. If you didn't assess it, don't chart it.</p>
+</aside>
+<main class="work" id="work"></main>
+</div>
+<p class="sample">Practice chart for teaching. The patient, providers, and record numbers are fictional.</p>
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mtitle"><div class="card" id="mbody"></div></div>
+
+<script>
+{
+const KEY='cc154-ruth-v1';
+const fresh=()=>({oxyV:{},tab:'report',time:'0900',seen:{report:false},found0:{},found1:{},ints:[],oxy:false,fs0:{},fs1:{},filed0:false,filed1:false,notes:[],drafts:{fdar:{},soapie:{}},mode:'fdar',fb:[]});
+let S;try{S=JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){S=fresh()}
+S={...fresh(),...S};S.oxyV=S.oxyV||{};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=id=>document.getElementById(id);
+
+const TABS=[['report','Report'],['orders','Orders'],['mar','MAR'],['bedside','Bedside'],['flow','Flowsheet'],['notes','Notes']];
+
+/* Bedside actions: what each reveals, at 0900 and at 1010 */
+const ACT=[
+{id:'id',label:'Introduce yourself and verify identity',f0:'Ruth states her name and date of birth, 03/14/1956. Matches the wristband.',f1:'Identity verified again with name and date of birth.',fields:[]},
+{id:'pain',label:'Ask about her pain',f0:'"My knee is throbbing, about a 7 out of 10." Pain is in the right knee and worse when she moves.',f1:'"That\'s much better. It\'s about a 3 out of 10 now, more of an ache." Right knee.',fields:['pain','loc','quality']},
+{id:'pt',label:'Ask about getting up for therapy',f0:'"I don\'t want to get up for therapy."',f1:'"I didn\'t realize the medicine would help me move."',fields:[]},
+{id:'meds',label:'Ask how she feels about pain medicine',f0:'"I\'m afraid I\'ll get hooked on pain pills."',f1:'"Okay, I understand it\'s just for a short time."',fields:[]},
+{id:'vs',label:'Take vital signs',f0:'T 98.8 °F · HR 102 · BP 150/86 · RR 20 · SpO2 97% on room air',f1:'T 98.6 °F · HR 84 · BP 134/78 · RR 16 · SpO2 98% on room air',fields:['temp','hr','bp','rr','spo2','o2']},
+{id:'move',label:'Observe her moving and mobility',f0:'Grimaces and guards the right knee when shifting in bed. Has not been out of bed since surgery.',f1:'No grimacing observed. Walked 30 feet with a walker and the physical therapist; steady.',fields:['beh','mob']},
+{id:'dsg',label:'Inspect the surgical dressing',f0:'Dressing dry and intact. No drainage visible.',f1:'Dressing dry and intact.',fields:['dressing']},
+{id:'nv',label:'Neurovascular check, right foot',f0:'Pedal pulse 2+. Toes warm and pink. Capillary refill under 3 seconds. Moves toes; sensation intact.',f1:'Pedal pulse 2+. Toes warm. Capillary refill under 3 seconds.',fields:['pulse','toetemp','cap']},
+{id:'lungs',label:'Listen to lung sounds',f0:'Clear in all lobes.',f1:'Clear in all lobes.',fields:['lungs']}
+];
+const REQ0=['pain','vs','move','dsg','nv'];
+
+const TRUTH={
+0:{temp:'98.8',hr:'102',bp:'150/86',rr:'20',spo2:'97',o2:'Room air',lungs:'Clear in all lobes',pain:'7',loc:'right knee',quality:'Throbbing',beh:'Grimacing and guarding',mob:'In bed',dressing:'Dry and intact',pulse:'2+ present',toetemp:'Warm',cap:'Less than 3 seconds'},
+1:{temp:'98.6',hr:'84',bp:'134/78',rr:'16',spo2:'98',o2:'Room air',lungs:'Clear in all lobes',pain:'3',loc:'right knee',quality:'Aching',beh:'None observed',mob:'Ambulated with walker',dressing:'Dry and intact',pulse:'2+ present',toetemp:'Warm',cap:'Less than 3 seconds'}};
+
+const ROWS=[
+['temp','Temperature (°F)','num'],['hr','Heart rate','num'],['bp','Blood pressure','text'],['rr','Respiratory rate','num'],['spo2','SpO2 (%)','num'],
+['o2','Oxygen','sel',['Room air','Nasal cannula']],
+['lungs','Lung sounds','sel',['Clear in all lobes','Crackles','Wheezes','Diminished']],
+['pain','Pain score (0–10)','num'],['loc','Pain location','text'],['quality','Pain quality','sel',['Aching','Throbbing','Sharp','Burning']],
+['beh','Pain behaviors','sel',['None observed','Grimacing and guarding','Crying','Restless']],
+['mob','Mobility','sel',['In bed','Dangled at bedside','Ambulated with walker']],
+['dressing','Dressing','sel',['Dry and intact','Drainage present','Saturated']],
+['pulse','Pedal pulse, right','sel',['2+ present','1+ weak','Absent']],
+['toetemp','Toe temperature, right','sel',['Warm','Cool']],
+['cap','Capillary refill, right','sel',['Less than 3 seconds','3 seconds or more']]];
+
+const INTS=[
+{id:'teach',ok:true,label:'Teach about short-term use of prescribed pain medicine',res:'You explained that taking prescribed pain medicine for a short time after surgery helps her move and heal. Ruth: "Okay, if it helps me get moving."'},
+{id:'ice',ok:true,label:'Apply ice pack to right knee for 20 minutes',res:'Ice pack applied to right knee for 20 minutes.'},
+{id:'elev',ok:true,label:'Elevate right leg on pillows with the knee straight',res:'Right leg elevated lengthwise on pillows, knee extended.'},
+{id:'ptcall',ok:true,label:'Ask physical therapy to come at 1000',res:'PT agreed to come at 1000, after the medicine takes effect.'},
+{id:'pillow',ok:false,label:'Put a pillow under her knee for comfort',res:'Not done. After a knee replacement, a pillow under the knee keeps it bent and can cause a flexion contracture. Elevate the whole leg with the knee straight.'},
+{id:'skip',ok:false,label:'Tell her she can skip therapy today',res:'Not done. Early mobility prevents complications such as blood clots and stiffness. Time therapy for after her pain medicine works.'},
+{id:'hold',ok:false,label:'Hold the pain medicine because she is afraid of addiction',res:'Not done. Address her fear with teaching. Untreated pain limits mobility and slows recovery.'}];
+
+const MODEL={
+fdar:[
+['F','Right knee pain','One short focus names the priority problem. Her fear of addiction belongs inside this note because it is why her pain is uncontrolled; a separate problem would get its own note.'],
+['D','0900 Client states, "My knee is throbbing, about a 7 out of 10," and "I\'m afraid I\'ll get hooked on pain pills." Grimaces and guards right knee with movement. HR 102, BP 150/86, RR 20. Dressing dry and intact; pedal pulses present, toes warm. Last oxycodone at 0430.','Starts with the time. Pairs her exact words (subjective) with what the nurse measured and saw (objective). Includes only data about the focus, plus the last dose time, which shows the PRN was due.'],
+['A','0910 Explained short-term use of prescribed post-op pain medication and its role in recovery. Oxycodone 5 mg by mouth given. Ice pack applied for 20 minutes; leg elevated with knee extended. Physical therapy rescheduled to 1000.','Lists only what was actually done, with the time, drug, dose, and route. Teaching addresses the barrier (her fear). Elevating with the knee extended follows the order and prevents a flexion contracture.'],
+['R','1010 Rates pain 3/10. HR 84, BP 134/78, RR 16. Walked 30 feet with walker and physical therapist. States, "That\'s much better."','Re-measures the same things from the Data (pain score, HR, BP) so the change is visible. Shows the goal behind the care: she got up and walked. Never "tolerated well."']],
+soapie:[
+['S','"My knee is throbbing, about a 7 out of 10." "I don\'t want to get up for therapy." "I\'m afraid I\'ll get hooked on pain pills."','Only her words, in quotes. A pain rating is subjective even though it is a number, because she reports it.'],
+['O','0900 HR 102, BP 150/86, RR 20, SpO2 97% RA, T 98.8 °F. Grimaces and guards right knee with movement. Dressing dry, intact. Pedal pulses present, toes warm, cap refill under 3 sec. Last oxycodone 0430.','Measured and observed data with the time. Behaviors are described (grimaces, guards) rather than labeled (anxious, in distress). Neurovascular findings show circulation to the foot is intact.'],
+['A','Pain is uncontrolled, with raised HR and BP. Fear of the medication is limiting pain relief and mobility. Priority concepts: comfort and mobility.','Interprets instead of repeating numbers: what the data mean together and why it matters. Names priority concepts, not a medical or nursing diagnosis.'],
+['P','Teach about short-term use of prescribed pain medication. Give the as-needed analgesic per order; add ice and elevation. Schedule PT after the medicine takes effect. Reassess pain in 1 hour.','What the nurse intends to do, including when to reassess. It matches the problem named in A.'],
+['I','0910 Teaching done. Oxycodone 5 mg by mouth given. Ice pack 20 min; leg elevated with knee extended. PT moved to 1000.','What was actually done, with times. Plan and Interventions differ: one is intent, the other is action.'],
+['E','1010 Pain 3/10; HR 84, BP 134/78, RR 16. Walked 30 feet with walker. States, "I didn\'t realize the medicine would help me move."','Measured response at the planned reassessment time, compared with the starting data. Her words show the teaching worked.']]};
+
+const SECT={fdar:[['f','F','Focus','2–5 words naming the one problem, e.g. "Dizziness on standing"'],['d','D','Data','Start with the time. Her words in quotes, then what you measured and saw about this focus.'],['a','A','Action','Time, then what you did: teaching, medicine (drug, dose, route), comfort measures, who you told.'],['r','R','Response','Time of reassessment, then the same measures again and her words.']],
+soapie:[['s','S','Subjective','Her exact words in quotes. Pain ratings go here.'],['o','O','Objective','Start with the time. Vital signs and what you saw, heard, or felt. Describe behaviors; don\'t label them.'],['a','A','Assessment','What do S and O mean together? Name the priority concept(s). Don\'t repeat the numbers.'],['p','P','Plan','What you intend to do, and when you will reassess.'],['i','I','Interventions','What you actually did, with times.'],['e','E','Evaluation','Time, re-measured data compared with the start, her words. Was the goal met?']]};
+
+const GUIDE={
+fdar:{intro:'An FDAR note tells the story of one problem: what you found, what you did, and whether it worked. Decide the focus first: what is the main thing you acted on?',
+rows:[['F','Focus','Name one problem or concern in a few words.','Not a task ("pain med given") and not a diagnosis statement. A second problem gets its own note.'],
+['D','Data','Start with the time. Quote her, then add the measured and observed findings that relate to the focus. Include context that explains your action, such as when the last dose was given.','Leave out findings unrelated to the focus. Describe, don\'t label: "grimaces," not "uncomfortable."'],
+['A','Action','Start with the time. List what you actually did: teaching, medicine with drug, dose, and route, comfort measures, and anyone you notified.','Only what was done, not what you plan to do.'],
+['R','Response','Start with the reassessment time. Repeat the same measures from the Data (pain score, vital signs) so the change is visible, and add her words or behavior.','Never "tolerated well" or "feeling better" without evidence.']],
+ex:[['F','Dizziness on standing'],['D','1015 Client states, "I get woozy when I stand up from my chair." New blood pressure medicine started 3 days ago. Lying BP 142/84, HR 72; standing (3 min) BP 118/70, HR 94. Steady gait with cane.'],['A','1020 Taught to sit at edge of chair 1 minute before standing and to rise slowly. Encouraged fluids within provider limits. Reported findings to clinical instructor.'],['R','1035 Stood without dizziness on return demonstration. Named 3 fall-prevention steps. States she will call her provider\'s office by 1300.']]},
+soapie:{intro:'A SOAPIE note moves from data to meaning to action to result. The Assessment is where your clinical reasoning shows.',
+rows:[['S','Subjective','Her exact words in quotes: symptoms, concerns, pain ratings.','A pain score is subjective even though it is a number, because she reports it.'],
+['O','Objective','Start with the time. Vital signs and what you saw, heard, or felt during your assessment.','Describe behaviors ("guards right knee"); don\'t label them ("anxious," "uncooperative").'],
+['A','Assessment','Answer "so what?" Explain what S and O mean together and name the priority concept(s): comfort, mobility, safety, perfusion.','Don\'t repeat the numbers. No nursing diagnosis statement.'],
+['P','Plan','What you intend to do and when you will reassess.','It should match the problem named in A.'],
+['I','Interventions','What you actually did, with times.','Plan is intent; Interventions are action. They shouldn\'t be copies of each other.'],
+['E','Evaluation','Start with the time. Re-measure the starting data, compare, and add her words. State whether the goal was met.','"Tolerated well" is not an evaluation.']],
+ex:[['S','"I get woozy when I stand up from my chair, mostly in the morning." Denies falls or chest pain.'],['O','1015 Lying BP 142/84, HR 72. Standing (3 min) BP 118/70, HR 94. Alert, oriented ×4. Steady gait with cane. New blood pressure medicine started 3 days ago.'],['A','Systolic BP drops 24 mmHg on standing, with dizziness. Priority concepts: safety (fall risk) and perfusion.'],['P','Teach safe position changes. Encourage fluids within provider limits. Report findings to instructor. Recheck orthostatic BP next visit.'],['I','1020 Taught to sit at edge of chair 1 minute before standing and rise slowly. Reported to instructor.'],['E','1035 Stood without dizziness on return demonstration. States she will call her provider by 1300.']]}};
+
+function dataPanel(){
+const line=(t,l,f)=>`<li><b>${t}</b> ${esc(l)}: ${esc(f)}</li>`;
+const a0=ACT.filter(a=>S.found0[a.id]).map(a=>line('0900',a.label,a.f0));
+const iv=[...(S.oxy?[['0910','Medicine','Oxycodone 5 mg by mouth given (last dose before this: 0430)']]:[]),...S.ints.map(id=>INTS.find(x=>x.id===id)).filter(i=>i&&i.ok).map(i=>['0910','Intervention',i.res])].map(x=>line(...x));
+const a1=ACT.filter(a=>S.found1[a.id]).map(a=>line('1010',a.label,a.f1));
+const all=[...a0,...iv,...a1];
+return `<details class="card" ${all.length?'open':''}><summary><b>Your data from this shift</b></summary><p class="note-sm" style="margin:6px 0">Only what you assessed and did. Write your notes from this list.</p>${all.length?`<ul class="dlist">${all.join('')}</ul>`:'<p>Nothing recorded yet. Assess Ruth on the Bedside tab first.</p>'}</details>`;}
+
+function guidePanel(m){const g=GUIDE[m],L=m==='fdar'?'FDAR':'SOAPIE';
+return `<details class="card guide"><summary><b>How to write a ${L} note</b></summary><p style="margin:8px 0">${g.intro}</p>
+<div class="scroll"><table class="stack"><tr><th></th><th>What goes here</th><th>Watch out for</th></tr>${g.rows.map(r=>`<tr><td><b>${r[0]}</b> ${r[1]}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td></tr>`).join('')}</table></div>
+<p style="margin:12px 0 4px"><b>Example from a different client</b>: Mrs. K, 79, home visit, dizziness after starting a new blood pressure medicine.</p>
+<div class="model" style="margin-top:4px"><pre>${esc(g.ex.map(([k,t])=>k+': '+t).join('\n'))}</pre></div></details>`;}
+
+function steps(){
+const n=t=>S.notes.some(x=>x.type===t);
+const r0=REQ0.every(k=>S.found0[k]);
+const okInts=S.ints.filter(i=>INTS.find(x=>x.id===i&&x.ok)).length;
+return [['Read the handoff report',S.seen.report],['Assess at the bedside (0900)',r0],['Chart the 0900 flowsheet',S.filed0],['Give the PRN pain medicine from the MAR (0910)',S.oxy],['Choose nursing interventions (0910)',okInts>=1],['Reassess at 1010',S.time==='1010'&&S.found1.pain&&S.found1.vs],['Chart the 1010 flowsheet',S.filed1],['Write and sign an FDAR note',n('fdar')],['Write and sign a SOAPIE note',n('soapie')]];
+}
+function renderSteps(){$('steps').innerHTML=steps().map(([t,d],i)=>`<li class="${d?'done':''}"><i>${d?'✓':i+1}</i><span>${t}</span></li>`).join('')}
+function renderTabs(){$('tabs').innerHTML=TABS.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}">${l}</button>`).join('')}
+function renderClock(){$('clock').textContent='Time '+S.time}
+
+const V={
+report:()=>`<h2>Handoff report from the night nurse · 0700</h2>
+<div class="card"><h3>Your assignment</h3><p>You are the student nurse caring for Ruth this morning. Assess her at the bedside, chart what you find, act on it, reassess, and write one <b>FDAR</b> note and one <b>SOAPIE</b> note about her priority concern. Work through the tasks on the left in order.</p></div>
+<div class="card"><dl class="sbar">
+<dt>Situation</dt><dd>Ruth Lee, 70, is on day 1 after a right total knee replacement yesterday at 1400.</dd>
+<dt>Background</dt><dd>History of osteoarthritis. Lived alone and was independent before surgery. Allergic to sulfa (rash). Full code.</dd>
+<dt>Assessment</dt><dd>Pain 4–6 out of 10 overnight. Oxycodone given at 0430. Slept poorly. Vital signs at 0400: BP 138/80, HR 88, RR 18, T 98.6 °F. Dressing dry. Has been hesitant about taking pain medicine.</dd>
+<dt>Recommendation</dt><dd>Physical therapy is scheduled for 0930. Check her pain before therapy. Neurovascular checks every 4 hours.</dd></dl></div>`,
+orders:()=>`<h2>Active orders</h2><div class="card scroll"><table><tr><th>Order</th><th>Details</th></tr>
+<tr><td>Vital signs</td><td>Every 4 hours</td></tr>
+<tr><td>Neurovascular checks</td><td>Right lower leg every 4 hours</td></tr>
+<tr><td>Activity</td><td>Physical therapy evaluate and treat. Weight bearing as tolerated with walker.</td></tr>
+<tr><td>Ice</td><td>Ice pack to right knee, 20 minutes on, as needed</td></tr>
+<tr><td>Positioning</td><td>Elevate right leg on pillows lengthwise. No pillow under the knee.</td></tr>
+<tr><td>Opioid safety</td><td>Check respiratory rate and blood pressure before each opioid dose. Hold oxycodone for RR under 12 or systolic BP under 90; notify provider.</td></tr>
+<tr><td>Diet</td><td>Regular</td></tr>
+<tr><td>Notify provider</td><td>SBP over 160 or under 90; HR over 110; pain over 6 not relieved within 1 hour of PRN medicine</td></tr>
+</table></div>`,
+mar:()=>`<h2>Medication administration record</h2><div class="card scroll"><table><tr><th>Medication</th><th>Schedule</th><th>Last given</th><th></th></tr>
+<tr><td><b>Acetaminophen</b> 1,000 mg by mouth</td><td>Every 8 hours, scheduled</td><td>0600 · next due 1400</td><td></td></tr>
+<tr><td><b>Oxycodone</b> 5 mg by mouth</td><td>Every 4 hours as needed for moderate to severe pain (4–10)<br><b>Hold</b> for RR under 12 or systolic BP under 90; notify provider.</td><td>${S.oxy?`<b>0910</b> (you)<br>Pre-dose: pain 7/10, RR ${esc(S.oxyV.rr)}, BP ${esc(S.oxyV.bp)}${S.found1.vs||S.found1.pain?`<br>Reassessed 1010:${S.found1.pain?' pain 3/10,':''}${S.found1.vs?' RR 16, BP 134/78':''}`:''}`:'0430 · pre-dose RR 18, BP 138/80'}</td><td>${S.oxy?'Given':`<button class="primary" id="give">Give</button>`}</td></tr>
+<tr><td><b>Ondansetron</b> 4 mg by mouth</td><td>Every 8 hours as needed for nausea</td><td>Not given</td><td></td></tr>
+<tr><td><b>Enoxaparin</b> 40 mg subcutaneous</td><td>Daily at 2100</td><td>Yesterday 2100</td><td></td></tr>
+</table></div>${fbList('mar')}`,
+bedside:()=>{
+const t1=S.time==='1010';const F=t1?S.found1:S.found0;
+const acts=ACT.map(a=>`<button data-act="${a.id}" class="${F[a.id]?'seen':''}">${a.label}</button>`).join('');
+const finds=ACT.filter(a=>F[a.id]).map(a=>`<div class="find"><b>${a.label} · ${t1?'1010':'0900'}</b>${esc(t1?a.f1:a.f0)}</div>`).join('');
+const ints=INTS.map(i=>{const done=S.ints.includes(i.id);return `<button data-int="${i.id}" class="${done?'seen':''}">${i.label}</button>`}).join('');
+const intRes=S.ints.map(id=>INTS.find(x=>x.id===id)).filter(Boolean).map(i=>`<div class="${i.ok?'find':'fb warn'}">${i.ok?'<b>Intervention · 0910</b>':''}${esc(i.res)}</div>`).join('');
+return `<h2>Bedside · ${S.time}</h2>
+<div class="card"><h3>${t1?'Reassess at 1010':'Assess at 0900'}</h3><p class="note-sm" style="margin-top:0">Choose what to assess. Findings appear only for what you check.</p><div class="actions">${acts}</div>${finds}</div>
+<div class="card"><h3>Intervene · 0910</h3><p class="note-sm" style="margin-top:0">${t1?'Add any interventions you carried out at 0910 that you have not recorded yet.':'Check the Orders tab before you choose. Then click each action you would take, and give the pain medicine from the MAR tab.'}</p><div class="actions">${ints}</div>${intRes}
+${t1?'':`<div class="row" style="margin-top:12px"><button class="primary" id="advance" ${S.oxy?'':'disabled'}>Go to 1010 and reassess</button>${S.oxy?'':'<span class="note-sm" style="margin:0">Give the PRN medicine first.</span>'}</div>`}</div>`},
+flow:()=>{
+const col=t=>{const fs=t?S.fs1:S.fs0,F=t?S.found1:S.found0,dis=t&&S.time!=='1010';return ROWS.map(([k,l,type,opts])=>{
+const v=fs[k]??'';const chk=fsCheck(t,k);
+const ctl=type==='sel'?`<select data-fs="${t}" data-k="${k}" ${dis?'disabled':''} aria-label="${l} ${t?'1010':'0900'}"><option value=""></option>${opts.map(o=>`<option ${o===v?'selected':''}>${o}</option>`).join('')}</select>`
+:`<input data-fs="${t}" data-k="${k}" value="${esc(v)}" ${dis?'disabled':''} inputmode="${type==='num'?'decimal':'text'}" aria-label="${l} ${t?'1010':'0900'}">`;
+return {k,cell:`<td class="${chk&&chk.bad?'bad':''}">${ctl}${chk?`<span class="flag ${chk.bad?'':'info'}">${chk.msg}</span>`:''}</td>`}})};
+const c0=col(0),c1=col(1);
+return `<h2>Flowsheet</h2><div class="card scroll"><table class="fs"><tr><th>Row</th><th>0900 ${S.filed0?'· filed':''}</th><th>1010 ${S.filed1?'· filed':''}</th></tr>
+${ROWS.map((r,i)=>`<tr><td>${r[1]}</td>${c0[i].cell}${c1[i].cell}</tr>`).join('')}</table>
+<div class="row" style="margin-top:12px"><button class="primary" data-file="0">File 0900 column</button><button class="primary" data-file="1" ${S.time==='1010'?'':'disabled'}>File 1010 column</button></div>
+<p class="note-sm">Filing checks each entry against what you assessed. A red flag means the entry doesn't match your finding, or you charted something you didn't assess.</p></div>`},
+notes:()=>{
+const m=S.mode,d=S.drafts[m];
+const editor=SECT[m].map(([k,L,name,hint])=>`<div class="field"><label for="n-${k}">${L}<small>${name}</small></label><textarea id="n-${k}" data-note="${k}" placeholder="${hint}" ${k==='f'?'style="min-height:44px"':''}>${esc(d[k]||'')}</textarea></div>`).join('');
+const list=S.notes.slice().reverse().map(n=>noteCard(n)).join('');
+return `<h2>Notes</h2><div class="seg" role="group" aria-label="Note type"><button data-mode="fdar" aria-pressed="${m==='fdar'}">New FDAR note</button><button data-mode="soapie" aria-pressed="${m==='soapie'}">New SOAPIE note</button></div>
+${guidePanel(m)}${dataPanel()}
+<div class="card"><h3>${m==='fdar'?'FDAR':'SOAPIE'} note · Ruth Lee</h3>
+${editor}<div class="row"><button class="primary" id="sign">Sign ${m==='fdar'?'FDAR':'SOAPIE'} note</button><span class="note-sm" style="margin:0">Signs as ${esc(sigName())}</span></div>${fbList('notes')}</div>
+${list||'<p class="note-sm">No signed notes yet.</p>'}
+${S.notes.length?`<div class="row"><button id="copy">Copy my signed notes</button><span class="note-sm" style="margin:0" id="copymsg">Paste them into the Canvas assignment.</span></div><textarea id="copybox" hidden readonly></textarea>`:''}`}
+};
+
+function sigName(){const v=($('student').value||'').trim();return v?v+', SN':'(enter your name at top)'}
+function noteText(n){return SECT[n.type].map(([k,L])=>`${L}: ${n.body[k]||''}`).join('\n')}
+function noteCard(n){
+return `<div class="card signed"><h3>${n.type==='fdar'?'FDAR':'SOAPIE'} note</h3><pre>${esc(noteText(n))}</pre>
+<p class="sig">Signed: ${esc(n.sig)} · 11/24/26 ${n.at}${n.corr?` · Corrected entry; original kept below`:''}</p>
+<ul class="checks">${n.checks.map(c=>`<li class="${c[0]?'':'w'}">${esc(c[1])}</li>`).join('')}</ul>
+${n.orig?`<details><summary>Original entry</summary><pre>${esc(n.orig)}</pre></details>`:''}
+<div class="row"><button data-correct="${n.id}">Correct this entry</button><button data-model="${n.id}">${n.showModel?'Hide':'Show'} example note and rationale</button></div>
+${n.showModel?`<div class="model"><b>Example ${n.type==='fdar'?'FDAR':'SOAPIE'} note, with rationale</b><p class="note-sm" style="margin:4px 0 8px">Compare each section of yours with the example. Wording can differ; the content and the reasoning should match.</p>
+<div class="scroll"><table class="stack"><tr><th></th><th>Example</th><th>Why it works</th></tr>${MODEL[n.type].map(([L,t,w])=>`<tr><td><b>${L}</b></td><td>${esc(t)}</td><td>${esc(w)}</td></tr>`).join('')}</table></div></div>`:''}</div>`}
+
+function fsCheck(t,k){
+const filed=t?S.filed1:S.filed0;if(!filed)return null;
+const fs=t?S.fs1:S.fs0,F=t?S.found1:S.found0;const v=(fs[k]??'').trim();
+const act=ACT.find(a=>a.fields.includes(k));const assessed=act&&F[act.id];
+if(v&&!assessed)return{bad:true,msg:'Charted but not assessed'};
+if(!v&&assessed)return{bad:false,msg:'Assessed but not charted'};
+if(!v)return null;
+const tv=TRUTH[t][k];let match;
+if(k==='loc')match=/knee/i.test(v)&&/(right|\br\b)/i.test(v);
+else if(k==='bp')match=v.replace(/\s/g,'')===tv;
+else if(['temp','hr','rr','spo2','pain'].includes(k))match=parseFloat(v)===parseFloat(tv);
+else match=v===tv;
+return match?null:{bad:true,msg:"Doesn't match your finding"};}
+
+function checkNote(type,b){
+const all=Object.values(b).join(' ');const c=[];
+const dataSec=type==='fdar'?b.d||'':b.s||'';
+c.push([/["“]/.test(dataSec),"Client's own words in quotation marks"]);
+c.push([/\b(0[0-9]|1[0-9]|2[0-3])[0-5][0-9]\b/.test(all),'Times are recorded']);
+const judg=all.match(/\b(fine|good|tolerated well|uncooperative|non-?compliant|difficult|seems|seemed|normal)\b/gi);
+c.push([!judg,judg?`Replace vague or judgment words: ${[...new Set(judg.map(x=>x.toLowerCase()))].join(', ')}`:'No vague or judgment words']);
+const resp=type==='fdar'?b.r||'':b.e||'';
+c.push([/(\d+\s*(\/|out of)\s*10)/i.test(resp),'Response or evaluation re-measures pain']);
+if(type==='fdar')c.push([(b.f||'').trim().split(/\s+/).length<=6,'Focus is short and names one problem']);
+else c.push([!/\d{2,3}\/\d{2,3}/.test(b.a||'')&&(b.a||'').length>20,'Assessment interprets the data instead of repeating vital signs']);
+if(type==='soapie')c.push([(b.p||'').trim()!==(b.i||'').trim(),'Plan and Interventions are different (planned vs. done)']);
+return c;}
+
+let fb={mar:[],notes:[]};
+const fbList=w=>fb[w].map(f=>`<div class="fb ${f[0]}">${esc(f[1])}</div>`).join('');
+
+function render(){renderTabs();renderSteps();renderClock();$('work').innerHTML=V[S.tab]();save();}
+
+document.addEventListener('click',e=>{
+const b=e.target.closest('button');if(!b)return;
+if(b.dataset.tab){S.tab=b.dataset.tab;if(S.tab==='report')S.seen.report=true;fb={mar:[],notes:[]};render();return}
+if(b.dataset.act){(S.time==='1010'?S.found1:S.found0)[b.dataset.act]=true;render();return}
+if(b.dataset.int){if(!S.ints.includes(b.dataset.int))S.ints.push(b.dataset.int);render();return}
+if(b.id==='advance'){S.time='1010';render();return}
+if(b.id==='give'){openGive();return}
+if(b.dataset.file){const t=+b.dataset.file;if(t)S.filed1=true;else S.filed0=true;render();return}
+if(b.dataset.mode){S.mode=b.dataset.mode;fb.notes=[];render();return}
+if(b.id==='sign'){signNote();return}
+if(b.dataset.model){const n=S.notes.find(x=>x.id==b.dataset.model);n.showModel=!n.showModel;render();return}
+if(b.dataset.correct){const n=S.notes.find(x=>x.id==b.dataset.correct);S.mode=n.type;S.drafts[n.type]={...n.body};S.correcting=n.id;fb.notes=[['ok','Editing a correction. The original entry will be kept with the note.']];render();$('n-'+SECT[n.type][0][0]).focus();return}
+if(b.id==='copy'){copyNotes();return}
+if(b.id==='reset'){openReset();return}
+if(b.id==='mcancel'){closeModal();return}
+if(b.id==='mreset'){S=fresh();closeModal();render();return}
+if(b.id==='mgive'){const ok=['c1','c2','c3'].every(id=>$(id).checked);if(!ok){$('merr').textContent='Complete all three checks before giving the medicine.';$('merr').hidden=false;return}
+const rr=$('mrr').value.trim(),bp=$('mbp').value.replace(/\s/g,'');
+if(!rr||!bp){$('merr').textContent='Record the respiratory rate and blood pressure before giving an opioid.';$('merr').hidden=false;return}
+if(parseFloat(rr)!==20||bp!=='150/86'){$('merr').textContent="These don't match the vital signs you took at 0900. Check the Bedside tab.";$('merr').hidden=false;return}
+S.oxyV={rr,bp};S.oxy=true;closeModal();fb.mar=[['ok','Oxycodone 5 mg by mouth given at 0910. RR and BP are within the hold parameters. Reassess pain, RR, and BP in about 1 hour.']];render();return}
+});
+document.addEventListener('input',e=>{
+const t=e.target;
+if(t.dataset.fs!==undefined){const fs=t.dataset.fs==='1'?S.fs1:S.fs0;fs[t.dataset.k]=t.value;save();return}
+if(t.dataset.note){S.drafts[S.mode][t.dataset.note]=t.value;save();return}
+if(t.id==='student'){try{localStorage.setItem(KEY+'-name',t.value)}catch(e){}}
+});
+document.addEventListener('change',e=>{const t=e.target;if(t.dataset.fs!==undefined){const fs=t.dataset.fs==='1'?S.fs1:S.fs0;fs[t.dataset.k]=t.value;save()}});
+
+function openGive(){
+if(!S.found0.pain||!S.found0.vs){fb.mar=[['warn','Before giving an opioid, assess her pain and take her vital signs (respiratory rate and blood pressure). Go to the Bedside tab.']];render();return}
+$('mbody').innerHTML=`<h3 id="mtitle">Give oxycodone 5 mg by mouth · 0910</h3>
+<p>Pain at 0900: 7 out of 10 (moderate to severe). Last dose 0430, 4 hours 40 minutes ago.<br><b>Hold</b> for RR under 12 or systolic BP under 90.</p>
+<div class="row" style="margin-bottom:8px"><label style="flex-direction:column;align-items:flex-start;gap:2px">Respiratory rate<input id="mrr" inputmode="numeric" style="width:120px;min-height:40px;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--field)"></label><label style="flex-direction:column;align-items:flex-start;gap:2px">Blood pressure<input id="mbp" placeholder="e.g. 120/80" style="width:140px;min-height:40px;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--field)"></label></div>
+<label><input type="checkbox" id="c1"> Two identifiers checked: name and date of birth</label>
+<label><input type="checkbox" id="c2"> Allergy checked: sulfa only, no conflict</label>
+<label><input type="checkbox" id="c3"> Right dose, route, and time; within the every-4-hours window</label>
+<p class="fb warn" id="merr" hidden>Complete all three checks before giving the medicine.</p>
+<div class="row"><button class="primary" id="mgive">Give and document</button><button id="mcancel">Cancel</button></div>`;
+$('modal').classList.add('open');$('mrr').focus();}
+function openReset(){$('mbody').innerHTML=`<h3 id="mtitle">Start over?</h3><p>This clears your assessments, flowsheet, and notes in this browser.</p><div class="row"><button class="primary" id="mreset">Start over</button><button id="mcancel">Cancel</button></div>`;$('modal').classList.add('open');}
+function closeModal(){$('modal').classList.remove('open')}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+
+function signNote(){
+const m=S.mode,b={...S.drafts[m]};
+if(!($('student').value||'').trim()){fb.notes=[['warn','Enter your name at the top of the chart before signing.']];render();return}
+const empty=SECT[m].filter(([k])=>!(b[k]||'').trim()).map(x=>x[2]);
+if(empty.length){fb.notes=[['warn','Complete every section before signing: '+empty.join(', ')]];render();return}
+const now=S.time==='1010'?'1015':'0915';
+const note={id:Date.now(),type:m,body:b,sig:sigName(),at:now,checks:checkNote(m,b),showModel:true};
+if(S.correcting){const old=S.notes.find(x=>x.id===S.correcting);if(old&&old.type===m){note.corr=true;note.orig=noteText(old)+`\nSigned: ${old.sig} · 11/24/26 ${old.at}`;S.notes=S.notes.filter(x=>x!==old)}S.correcting=null}
+S.notes.push(note);S.drafts[m]={};
+const warns=note.checks.filter(c=>!c[0]).length;
+fb.notes=[[warns?'warn':'ok',(warns?`Signed. ${warns} item${warns>1?'s':''} flagged on your note.`:'Signed. Every automated check passed.')+' Scroll down to compare your note with the example and its rationale.']];render();}
+
+function copyNotes(){
+const txt=S.notes.map(n=>`${n.type==='fdar'?'FDAR':'SOAPIE'} note — Ruth Lee, MRN 4410-2287\n${noteText(n)}\nSigned: ${n.sig} · 11/24/26 ${n.at}`).join('\n\n');
+const box=$('copybox');
+const fallback=()=>{box.hidden=false;box.value=txt;box.focus();box.select();$('copymsg').textContent='Copy blocked here: the text is selected below. Press Ctrl+C or Cmd+C.'};
+try{navigator.clipboard.writeText(txt).then(()=>{$('copymsg').textContent='Copied. Paste into the Canvas assignment.'},fallback)}catch(e){fallback()}}
+
+const mo=new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}});
+mo.observe(document.body,{childList:true,subtree:true});
+try{$('student').value=localStorage.getItem(KEY+'-name')||''}catch(e){}
+if(S.tab==='report')S.seen.report=true;
+render();
+}
+</script>
+</body>
+</html>
